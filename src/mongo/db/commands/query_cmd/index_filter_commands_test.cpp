@@ -55,14 +55,14 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/find_command.h"
-#include "mongo/db/query/plan_cache.h"
-#include "mongo/db/query/plan_cache_callbacks.h"
-#include "mongo/db/query/plan_cache_debug_info.h"
-#include "mongo/db/query/plan_cache_key_factory.h"
+#include "mongo/db/query/plan_cache/plan_cache.h"
+#include "mongo/db/query/plan_cache/plan_cache_callbacks.h"
+#include "mongo/db/query/plan_cache/plan_cache_debug_info.h"
+#include "mongo/db/query/plan_cache/plan_cache_key_factory.h"
+#include "mongo/db/query/plan_cache/sbe_plan_cache.h"
 #include "mongo/db/query/plan_ranking_decision.h"
 #include "mongo/db/query/query_solution.h"
 #include "mongo/db/query/query_test_service_context.h"
-#include "mongo/db/query/sbe_plan_cache.h"
 #include "mongo/db/query/stage_builder/sbe/builder.h"
 #include "mongo/db/query/stage_types.h"
 #include "mongo/unittest/assert.h"
@@ -154,7 +154,7 @@ protected:
             why->scores.push_back(0U);
             why->candidateOrder.push_back(i);
         }
-        why->getStats<PlanStageStats>().candidatePlanStats = std::move(stats);
+        why->stats.candidatePlanStats = std::move(stats);
         return why;
     }
 
@@ -461,7 +461,7 @@ TEST_F(IndexFilterCommandsTest, SetAndClearFilters) {
         R"({query: {a: 1, b: 1},
             sort: {a: -1},
             projection: {_id: 0, a: 1},
-            collation: {locale: 'mock_reverse_string'}, 
+            collation: {locale: 'mock_reverse_string'},
             indexes: [{a: 1}]})");
 
     size_t expectedNumFilters = 1;

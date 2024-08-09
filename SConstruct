@@ -97,15 +97,13 @@ def has_option(name):
 
 
 def use_system_version_of_library(name):
-    return has_option("use-system-all") or has_option("use-system-" + name)
+    # Disabled during Bazel migration
+    return False
 
 
-# Returns true if we have been configured to use a system version of any C++ library. If you
-# add a new C++ library dependency that may be shimmed out to the system, add it to the below
-# list.
 def using_system_version_of_cxx_libraries():
-    cxx_library_names = ["tcmalloc-google", "boost", "tcmalloc-gperf"]
-    return True in [use_system_version_of_library(x) for x in cxx_library_names]
+    # Disabled during Bazel migration
+    return False
 
 
 def make_variant_dir_generator():
@@ -190,6 +188,12 @@ add_option(
     default="all",
     type="choice",
     help="Lint files in the current git diff instead of all files",
+)
+
+add_option(
+    "bazel-includes-info",
+    help="write included headers in bazel label format to put files ([library].bazel_includes)",
+    default="",
 )
 
 add_option(
@@ -464,6 +468,18 @@ add_option(
 )
 
 add_option(
+    "pgo-profile",
+    help="compile with pgo profiling",
+    nargs=0,
+)
+
+add_option(
+    "pgo",
+    help="compile with pgo. Assumes profile file default.profdata at root of repository",
+    nargs=0,
+)
+
+add_option(
     "enable-http-client",
     choices=["auto", "on", "off"],
     default="auto",
@@ -491,65 +507,6 @@ add_option(
     default="off",
     help="Enable tracing profiler statistic collection",
     type="choice",
-)
-
-# Most of the "use-system-*" options follow a simple form.
-for pack in [
-    (
-        "asio",
-        "ASIO",
-    ),
-    ("boost",),
-    ("fmt",),
-    ("google-benchmark", "Google benchmark"),
-    ("grpc",),
-    ("icu", "ICU"),
-    ("intel_decimal128", "intel decimal128"),
-    ("bson",),
-    ("libmongocrypt",),
-    ("tomcrypt",),
-    ("pcre2",),
-    ("protobuf", "Protocol Buffers"),
-    ("snappy",),
-    ("stemmer",),
-    ("tcmalloc-google",),
-    ("tcmalloc-gperf",),
-    ("libunwind",),
-    ("valgrind",),
-    ("wiredtiger",),
-    ("yaml",),
-    ("zlib",),
-    ("zstd", "Zstandard"),
-]:
-    name = pack[0]
-    pretty = name
-    if len(pack) == 2:
-        pretty = pack[1]
-    add_option(
-        f"use-system-{name}",
-        help=f"use system version of {pretty} library",
-        nargs=0,
-    )
-
-add_option(
-    "system-boost-lib-search-suffixes",
-    help="Comma delimited sequence of boost library suffixes to search",
-)
-
-add_option(
-    "use-system-mongo-c",
-    choices=["on", "off", "auto"],
-    const="on",
-    default="auto",
-    help="use system version of the mongo-c-driver (auto will use it if it's found)",
-    nargs="?",
-    type="choice",
-)
-
-add_option(
-    "use-system-all",
-    help="use all system libraries",
-    nargs=0,
 )
 
 add_option(
@@ -1758,7 +1715,6 @@ envDict = dict(
     BENCHMARK_LIST="$BUILD_ROOT/benchmarks.txt",
     CONFIGUREDIR="$BUILD_ROOT/scons/$VARIANT_DIR/sconf_temp",
     CONFIGURELOG="$BUILD_ROOT/scons/config.log",
-    CONFIG_HEADER_DEFINES={},
     LIBDEPS_TAG_EXPANSIONS=[],
 )
 
@@ -1915,11 +1871,14 @@ if unknown_vars:
 install_actions.setup(env, get_option("install-action"))
 
 
-def set_config_header_define(env, varname, varval=1):
-    env["CONFIG_HEADER_DEFINES"][varname] = varval
+if env.TargetOSIs("windows") and os.path.exists(
+    env.File("#/src/mongo/db/modules/enterprise/SConscript").abspath
+):
+    # the sasl zip can be rebuilt by following the instructions at:
+    # https://github.com/mongodb-forks/cyrus-sasl/blob/mongo-sasl-2-1-28/README.md
+    import mongo.download_windows_sasl
 
-
-env.AddMethod(set_config_header_define, "SetConfigHeaderDefine")
+    mongo.download_windows_sasl.download_sasl(env)
 
 detectEnv = env.Clone()
 
@@ -2303,8 +2262,6 @@ env["USE_VENDORED_LIBUNWIND"] = use_vendored_libunwind
 if use_system_libunwind and not use_libunwind:
     print("Error: --use-system-libunwind requires --use-libunwind")
     Exit(1)
-if use_libunwind == True:
-    env.SetConfigHeaderDefine("MONGO_CONFIG_USE_LIBUNWIND")
 
 if get_option("visibility-support") == "auto":
     visibility_annotations_enabled = not env.TargetOSIs("windows") and link_model.startswith(
@@ -2512,9 +2469,6 @@ if link_model.startswith("dynamic"):
                     return []
 
                 env["LIBDEPS_TAG_EXPANSIONS"].append(libdeps_tags_expand_incomplete)
-
-if optBuild != "off":
-    env.SetConfigHeaderDefine("MONGO_CONFIG_OPTIMIZED_BUILD")
 
 # Enable the fast decider if explicitly requested or if in 'auto' mode
 # and not in conflict with other options like the ninja option which
@@ -2839,9 +2793,7 @@ env["LIBDEPS_TAG_EXPANSIONS"].append(link_guard_libdeps_tag_expand)
 env.Tool("forceincludes")
 
 # ---- other build setup -----
-if debugBuild:
-    env.SetConfigHeaderDefine("MONGO_CONFIG_DEBUG_BUILD")
-else:
+if not debugBuild:
     env.AppendUnique(CPPDEFINES=["NDEBUG"])
 
 # Normalize our experimental optimiation and hardening flags
@@ -3379,14 +3331,6 @@ if get_option("wiredtiger") == "on":
         )
     else:
         wiredtiger = True
-        env.SetConfigHeaderDefine("MONGO_CONFIG_WIREDTIGER_ENABLED")
-
-if get_option("ocsp-stapling") == "on":
-    # OCSP Stapling needs to be disabled on ubuntu 18.04 machines because when TLS 1.3 is
-    # enabled on that machine, the status-response message sent contains garbage data. This
-    # is a known bug and needs to be fixed by upstream, but for the time being we need to
-    # disable OCSP Stapling on Ubuntu 18.04 machines. See SERVER-51364 for more details.
-    env.SetConfigHeaderDefine("MONGO_CONFIG_OCSP_STAPLING_ENABLED")
 
 if not env.TargetOSIs("windows", "macOS") and (env.ToolchainIs("GCC", "clang")):
     # By default, apply our current microarchitecture minima. If the
@@ -3428,20 +3372,6 @@ if not env.TargetOSIs("windows", "macOS") and (env.ToolchainIs("GCC", "clang")):
                 for flag_value in env[search_variable]
             ):
                 env.Append(CCFLAGS=[f"{targeting_flag}{targeting_flag_value}"])
-
-# boostSuffixList is used when using system boost to select a search sequence
-# for boost libraries.
-boostSuffixList = ["-mt", ""]
-if get_option("system-boost-lib-search-suffixes") is not None:
-    if not use_system_version_of_library("boost"):
-        env.FatalError(
-            "The --system-boost-lib-search-suffixes option is only valid " "with --use-system-boost"
-        )
-    boostSuffixList = get_option("system-boost-lib-search-suffixes")
-    if boostSuffixList == "":
-        boostSuffixList = []
-    else:
-        boostSuffixList = boostSuffixList.split(",")
 
 # discover modules, and load the (python) module for each module's build.py
 mongo_modules = moduleconfig.discover_modules("src/mongo/db/modules", get_option("modules"))
@@ -4097,40 +4027,6 @@ def doConfigure(myenv):
 
     conf.Finish()
 
-    # C11 memset_s - a secure memset
-    def CheckMemset_s(context):
-        test_body = """
-        #define __STDC_WANT_LIB_EXT1__ 1
-        #include <cstring>
-        int main(int argc, char* argv[]) {
-            void* data = nullptr;
-            return memset_s(data, 0, 0, 0);
-        }
-        """
-
-        context.Message("Checking for memset_s... ")
-        ret = context.TryLink(textwrap.dedent(test_body), ".cpp")
-        context.Result(ret)
-        return ret
-
-    conf = Configure(
-        env,
-        custom_tests={
-            "CheckMemset_s": CheckMemset_s,
-        },
-    )
-    if conf.CheckMemset_s():
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_MEMSET_S")
-
-    if conf.CheckFunc("strnlen"):
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_STRNLEN")
-
-    # Glibc 2.25+, OpenBSD 5.5+ and FreeBSD 11.0+ offer explicit_bzero, a secure way to zero memory
-    if conf.CheckFunc("explicit_bzero"):
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_EXPLICIT_BZERO")
-
-    conf.Finish()
-
     # If we are using libstdc++, check to see if we are using a
     # libstdc++ that is older than our GCC minimum of 5.3.0. This is
     # primarly to help people using clang on OS X but forgetting to
@@ -4245,33 +4141,11 @@ def doConfigure(myenv):
 
     # Check if we are on a system that support the POSIX clock_gettime function
     #  and the "monotonic" clock.
-    posix_monotonic_clock = False
     if posix_system:
-
-        def CheckPosixMonotonicClock(context):
-            test_body = """
-            #include <unistd.h>
-            #if !(defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0)
-            #error POSIX clock_gettime not supported
-            #elif !(defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK >= 0)
-            #error POSIX monotonic clock not supported
-            #endif
-            """
-
-            context.Message("Checking if the POSIX monotonic clock is supported... ")
-            ret = context.TryCompile(textwrap.dedent(test_body), ".c")
-            context.Result(ret)
-            return ret
-
         conf = Configure(
             myenv,
             help=False,
-            custom_tests={
-                "CheckPosixMonotonicClock": CheckPosixMonotonicClock,
-            },
         )
-        posix_monotonic_clock = conf.CheckPosixMonotonicClock()
-
         # On 32-bit systems, we need to define this in order to get access to
         # the 64-bit versions of fseek, etc.
         # except on 32 bit android where it breaks boost
@@ -4819,15 +4693,42 @@ def doConfigure(myenv):
                 myenv.ConfError("Failed to enable thin LTO")
 
         if linker_ld != "gold" and not env.TargetOSIs("darwin", "macOS"):
-            myenv.AppendUnique(
-                CCFLAGS=["-ffunction-sections"],
-                LINKFLAGS=[
-                    "-Wl,--symbol-ordering-file=symbols.orderfile",
-                    "-Wl,--no-warn-symbol-ordering",
-                ],
-            )
+            if has_option("pgo"):
+                print("WARNING: skipping symbol ordering as pgo is enabled")
+            else:
+                myenv.AppendUnique(
+                    CCFLAGS=["-ffunction-sections"],
+                    LINKFLAGS=[
+                        "-Wl,--symbol-ordering-file=symbols.orderfile",
+                        "-Wl,--no-warn-symbol-ordering",
+                    ],
+                )
         else:
             print("WARNING: lld linker is required to sort symbols")
+
+        if has_option("pgo-profile"):
+            if (
+                not myenv.ToolchainIs("clang")
+                or not myenv.TargetOSIs("linux")
+                or linker_ld == "gold"
+            ):
+                myenv.FatalError("Error: pgo only works on linux with clang + lld")
+            myenv.AppendUnique(
+                CCFLAGS=["-fprofile-instr-generate"],
+                LINKFLAGS=["-fprofile-instr-generate"],
+            )
+
+        if has_option("pgo"):
+            if (
+                not myenv.ToolchainIs("clang")
+                or not myenv.TargetOSIs("linux")
+                or linker_ld == "gold"
+            ):
+                myenv.FatalError("Error: pgo only works on linux with clang + lld")
+            myenv.AppendUnique(
+                _NON_CONF_CCFLAGS_GEN=["-fprofile-use=./default.profdata"],
+            )
+            myenv["CCFLAGS_WERROR"].remove("-Werror")
 
         # As far as we know these flags only apply on posix-y systems,
         # and not on Darwin.
@@ -5072,39 +4973,6 @@ def doConfigure(myenv):
         if not "builtin-memcmp" in selected_experimental_optimizations:
             myenv.AddToCCFLAGSIfSupported("-fno-builtin-memcmp")
 
-    # pthread_setname_np was added in GLIBC 2.12, and Solaris 11.3
-    if posix_system:
-
-        def CheckPThreadSetNameNP(context):
-            compile_test_body = textwrap.dedent("""
-            #ifndef _GNU_SOURCE
-            #define _GNU_SOURCE
-            #endif
-            #include <pthread.h>
-
-            int main() {
-                pthread_setname_np(pthread_self(), "test");
-                return 0;
-            }
-            """)
-
-            context.Message("Checking if pthread_setname_np is supported... ")
-            result = context.TryCompile(compile_test_body, ".cpp")
-            context.Result(result)
-            return result
-
-        conf = Configure(
-            myenv,
-            custom_tests={
-                "CheckPThreadSetNameNP": CheckPThreadSetNameNP,
-            },
-        )
-
-        if conf.CheckPThreadSetNameNP():
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_PTHREAD_SETNAME_NP")
-
-        myenv = conf.Finish()
-
     def CheckBoostMinVersion(context):
         compile_test_body = textwrap.dedent("""
         #include <boost/version.hpp>
@@ -5235,65 +5103,6 @@ def doConfigure(myenv):
             maybeIssueDarwinSSLAdvice(conf.env)
             conf.env.ConfError("SSL is enabled, but is unavailable")
 
-        if conf.CheckDeclaration(
-            "FIPS_mode_set",
-            includes="""
-                #include <openssl/crypto.h>
-                #include <openssl/evp.h>
-            """,
-        ):
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_FIPS_MODE_SET")
-
-        if conf.CheckDeclaration(
-            "d2i_ASN1_SEQUENCE_ANY",
-            includes="""
-                #include <openssl/asn1.h>
-            """,
-        ):
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_ASN1_ANY_DEFINITIONS")
-
-        def CheckOpenSSL_EC_DH(context):
-            compile_test_body = textwrap.dedent("""
-            #include <openssl/ssl.h>
-
-            int main() {
-                SSL_CTX_set_ecdh_auto(0, 0);
-                SSL_set_ecdh_auto(0, 0);
-                return 0;
-            }
-            """)
-
-            context.Message("Checking if SSL_[CTX_]_set_ecdh_auto is supported... ")
-            result = context.TryCompile(compile_test_body, ".cpp")
-            context.Result(result)
-            return result
-
-        def CheckOpenSSL_EC_KEY_new(context):
-            compile_test_body = textwrap.dedent("""
-            #include <openssl/ssl.h>
-            #include <openssl/ec.h>
-
-            int main() {
-                SSL_CTX_set_tmp_ecdh(0, 0);
-                EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-                EC_KEY_free(0);
-                return 0;
-            }
-            """)
-
-            context.Message("Checking if EC_KEY_new_by_curve_name is supported... ")
-            result = context.TryCompile(compile_test_body, ".cpp")
-            context.Result(result)
-            return result
-
-        conf.AddTest("CheckOpenSSL_EC_DH", CheckOpenSSL_EC_DH)
-        if conf.CheckOpenSSL_EC_DH():
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_SSL_SET_ECDH_AUTO")
-
-        conf.AddTest("CheckOpenSSL_EC_KEY_new", CheckOpenSSL_EC_KEY_new)
-        if conf.CheckOpenSSL_EC_KEY_new():
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_SSL_EC_KEY_NEW")
-
     # We require ssl by default unless the user has specified --ssl=off
     require_ssl = get_option("ssl") != "off"
 
@@ -5306,29 +5115,17 @@ def doConfigure(myenv):
     if conf.env.TargetOSIs("windows"):
         # SChannel on Windows
         ssl_provider = "windows"
-        conf.env.SetConfigHeaderDefine(
-            "MONGO_CONFIG_SSL_PROVIDER",
-            "MONGO_CONFIG_SSL_PROVIDER_WINDOWS",
-        )
         conf.env.Append(MONGO_CRYPTO=["windows"])
 
     elif conf.env.TargetOSIs("darwin", "macOS"):
         # SecureTransport on macOS
         ssl_provider = "apple"
-        conf.env.SetConfigHeaderDefine(
-            "MONGO_CONFIG_SSL_PROVIDER",
-            "MONGO_CONFIG_SSL_PROVIDER_APPLE",
-        )
         conf.env.Append(MONGO_CRYPTO=["apple"])
         conf.env.AppendUnique(FRAMEWORKS=["CoreFoundation", "Security"])
 
     elif require_ssl:
         checkOpenSSL(conf)
         # Working OpenSSL available, use it.
-        conf.env.SetConfigHeaderDefine(
-            "MONGO_CONFIG_SSL_PROVIDER",
-            "MONGO_CONFIG_SSL_PROVIDER_OPENSSL",
-        )
         conf.env.Append(MONGO_CRYPTO=["openssl"])
         ssl_provider = "openssl"
 
@@ -5339,7 +5136,6 @@ def doConfigure(myenv):
     if require_ssl:
         # Either crypto engine is native,
         # or it's OpenSSL and has been checked to be working.
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_SSL")
         print("Using SSL Provider: {0}".format(ssl_provider))
     else:
         ssl_provider = "none"
@@ -5441,26 +5237,6 @@ def doConfigure(myenv):
             ]
         )
 
-    if use_system_version_of_library("boost"):
-        if not conf.CheckCXXHeader("boost/filesystem/operations.hpp"):
-            myenv.ConfError("can't find boost headers")
-        if not conf.CheckBoostMinVersion():
-            myenv.ConfError("system's version of boost is too old. version 1.49 or better required")
-
-        # Note that on Windows with using-system-boost builds, the following
-        # FindSysLibDep calls do nothing useful (but nothing problematic either)
-        #
-        # NOTE: Pass --system-boost-lib-search-suffixes= to suppress these checks, which you
-        # might want to do if using autolib linking on Windows, for example.
-        if boostSuffixList:
-            for b in boostLibs:
-                boostlib = "boost_" + b
-                conf.FindSysLibDep(
-                    boostlib,
-                    [boostlib + suffix for suffix in boostSuffixList],
-                    language="C++",
-                )
-
     if use_system_version_of_library("protobuf"):
         conf.FindSysLibDep("protobuf", ["protobuf"])
         conf.FindSysLibDep("protoc", ["protoc"])
@@ -5471,26 +5247,8 @@ def doConfigure(myenv):
         conf.FindSysLibDep("grpcxx_reflection", ["grpc++_reflection"])
 
     if posix_system:
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_HEADER_UNISTD_H")
         conf.CheckLib("rt")
         conf.CheckLib("dl")
-
-    if posix_monotonic_clock:
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_POSIX_MONOTONIC_CLOCK")
-
-    if get_option("use-diagnostic-latches") == "off":
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_USE_RAW_LATCHES")
-
-    if get_option("use-tracing-profiler") == "on":
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_USE_TRACING_PROFILER")
-
-    if (
-        conf.CheckCXXHeader("execinfo.h")
-        and conf.CheckDeclaration("backtrace", includes="#include <execinfo.h>")
-        and conf.CheckDeclaration("backtrace_symbols", includes="#include <execinfo.h>")
-        and conf.CheckDeclaration("backtrace_symbols_fd", includes="#include <execinfo.h>")
-    ):
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_EXECINFO_BACKTRACE")
 
     conf.env["_HAVEPCAP"] = conf.CheckLib(["pcap", "wpcap"], autoadd=False)
 
@@ -5568,68 +5326,6 @@ def doConfigure(myenv):
         if not check_all_atomics(" with libatomic"):
             myenv.ConfError("The toolchain does not support std::atomic, cannot continue")
 
-    def CheckExtendedAlignment(context, size):
-        test_body = """
-            #include <atomic>
-            #include <mutex>
-            #include <cstddef>
-
-            static_assert(alignof(std::max_align_t) < {0}, "whatever");
-
-            alignas({0}) std::mutex aligned_mutex;
-            alignas({0}) std::atomic<int> aligned_atomic;
-
-            struct alignas({0}) aligned_struct_mutex {{
-                std::mutex m;
-            }};
-
-            struct alignas({0}) aligned_struct_atomic {{
-                std::atomic<int> m;
-            }};
-
-            struct holds_aligned_mutexes {{
-                alignas({0}) std::mutex m1;
-                alignas({0}) std::mutex m2;
-            }} hm;
-
-            struct holds_aligned_atomics {{
-                alignas({0}) std::atomic<int> a1;
-                alignas({0}) std::atomic<int> a2;
-            }} ha;
-        """.format(size)
-
-        context.Message(
-            "Checking for extended alignment {0} for concurrency types... ".format(size)
-        )
-        ret = context.TryCompile(textwrap.dedent(test_body), ".cpp")
-        context.Result(ret)
-        return ret
-
-    conf.AddTest("CheckExtendedAlignment", CheckExtendedAlignment)
-
-    # If we don't have a specialized search sequence for this
-    # architecture, assume 64 byte cache lines, which is pretty
-    # standard. If for some reason the compiler can't offer that, try
-    # 32.
-    default_alignment_search_sequence = [64, 32]
-
-    # The following are the target architectures for which we have
-    # some knowledge that they have larger cache line sizes. In
-    # particular, POWER8 uses 128 byte lines and zSeries uses 256. We
-    # start at the goal state, and work down until we find something
-    # the compiler can actualy do for us.
-    extended_alignment_search_sequence = {
-        "ppc64le": [128, 64, 32],
-        "s390x": [256, 128, 64, 32],
-    }
-
-    for size in extended_alignment_search_sequence.get(
-        env["TARGET_ARCH"], default_alignment_search_sequence
-    ):
-        if conf.CheckExtendedAlignment(size):
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT", size)
-            break
-
     def CheckMongoCMinVersion(context):
         compile_test_body = textwrap.dedent("""
         #include <mongoc/mongoc.h>
@@ -5646,21 +5342,7 @@ def doConfigure(myenv):
 
     conf.AddTest("CheckMongoCMinVersion", CheckMongoCMinVersion)
 
-    mongoc_mode = get_option("use-system-mongo-c")
     conf.env["MONGO_HAVE_LIBMONGOC"] = False
-    if mongoc_mode != "off":
-        if conf.CheckLibWithHeader(
-            ["mongoc-1.0"],
-            ["mongoc/mongoc.h"],
-            "C",
-            "mongoc_get_major_version();",
-            autoadd=False,
-        ):
-            conf.env["MONGO_HAVE_LIBMONGOC"] = True
-        if not conf.env["MONGO_HAVE_LIBMONGOC"] and mongoc_mode == "on":
-            myenv.ConfError("Failed to find the required C driver headers")
-        if conf.env["MONGO_HAVE_LIBMONGOC"] and not conf.CheckMongoCMinVersion():
-            myenv.ConfError("Version of mongoc is too old. Version 1.13+ required")
 
     # ask each module to configure itself and the build environment.
     moduleconfig.configure_modules(mongo_modules, conf)
@@ -5675,67 +5357,6 @@ def doConfigure(myenv):
     elif http_client == "on":
         checkHTTPLib(required=True)
 
-    if env["TARGET_ARCH"] == "ppc64le":
-        # This checks for an altivec optimization we use in full text search.
-        # Different versions of gcc appear to put output bytes in different
-        # parts of the output vector produced by vec_vbpermq.  This configure
-        # check looks to see which format the compiler produces.
-        #
-        # NOTE: This breaks cross compiles, as it relies on checking runtime functionality for the
-        # environment we're in.  A flag to choose the index, or the possibility that we don't have
-        # multiple versions to support (after a compiler upgrade) could solve the problem if we
-        # eventually need them.
-        def CheckAltivecVbpermqOutput(context, index):
-            test_body = """
-                #include <altivec.h>
-                #include <cstring>
-                #include <cstdint>
-                #include <cstdlib>
-
-                int main() {{
-                    using Native = __vector signed char;
-                    const size_t size = sizeof(Native);
-                    const Native bits = {{ 120, 112, 104, 96, 88, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 0 }};
-
-                    uint8_t inputBuf[size];
-                    std::memset(inputBuf, 0xFF, sizeof(inputBuf));
-
-                    for (size_t offset = 0; offset <= size; offset++) {{
-                        Native vec = vec_vsx_ld(0, reinterpret_cast<const Native*>(inputBuf));
-
-                        uint64_t mask = vec_extract(vec_vbpermq(vec, bits), {0});
-
-                        size_t initialZeros = (mask == 0 ? size : __builtin_ctzll(mask));
-                        if (initialZeros != offset) {{
-			    return 1;
-                        }}
-
-                        if (offset < size) {{
-                            inputBuf[offset] = 0;  // Add an initial 0 for the next loop.
-                        }}
-                    }}
-
-		    return 0;
-                }}
-            """.format(index)
-
-            context.Message("Checking for vec_vbperm output in index {0}... ".format(index))
-            ret = context.TryRun(textwrap.dedent(test_body), ".cpp")
-            context.Result(ret[0])
-            return ret[0]
-
-        conf.AddTest("CheckAltivecVbpermqOutput", CheckAltivecVbpermqOutput)
-
-        outputIndex = next((idx for idx in [0, 1] if conf.CheckAltivecVbpermqOutput(idx)), None)
-        if outputIndex is not None:
-            conf.env.SetConfigHeaderDefine(
-                "MONGO_CONFIG_ALTIVEC_VEC_VBPERMQ_OUTPUT_INDEX", outputIndex
-            )
-        else:
-            myenv.ConfError(
-                "Running on ppc64le, but can't find a correct vec_vbpermq output index.  Compiler or platform not supported"
-            )
-
     if get_option("xray") == "on":
         if not (myenv.ToolchainIs("clang") and env.TargetOSIs("linux")):
             env.FatalError("LLVM Xray is only supported with clang on linux")
@@ -5748,47 +5369,6 @@ def doConfigure(myenv):
             LINKFLAGS=["-fxray-instrument"],
         )
 
-    myenv = conf.Finish()
-
-    conf = Configure(myenv)
-    usdt_enabled = get_option("enable-usdt-probes")
-    usdt_provider = None
-    if usdt_enabled in ("auto", "on"):
-        if env.TargetOSIs("linux"):
-            if conf.CheckHeader("sys/sdt.h"):
-                usdt_provider = "SDT"
-        # can put other OS targets here
-        if usdt_enabled == "on" and not usdt_provider:
-            myenv.ConfError(
-                "enable-usdt-probes flag was set to on, but no USDT provider could be found"
-            )
-        elif usdt_provider:
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_USDT_ENABLED")
-            conf.env.SetConfigHeaderDefine("MONGO_CONFIG_USDT_PROVIDER", usdt_provider)
-    myenv = conf.Finish()
-
-    def CheckGlibcRseqPresent(context):
-        compile_test_body = textwrap.dedent("""
-        #include <sys/rseq.h>
-        #include <stdlib.h>
-        #include <stdio.h>
-
-        int main() {
-            printf("%d", __rseq_size);
-            return EXIT_SUCCESS;
-        }
-        """)
-
-        context.Message("Checking if glibc rseq implemenation is present...")
-        result = context.TryCompile(compile_test_body, ".cpp")
-        context.Result(result)
-        return result
-
-    conf = Configure(myenv)
-    conf.AddTest("CheckGlibcRseqPresent", CheckGlibcRseqPresent)
-
-    if conf.CheckGlibcRseqPresent():
-        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_GLIBC_RSEQ")
     myenv = conf.Finish()
 
     return myenv
@@ -6174,13 +5754,7 @@ if gdb_index_enabled == True:
         env.FatalError("Could not enable explicit request for gdb index generation.")
 
 if env.get("ENABLE_GRPC_BUILD"):
-    env.SetConfigHeaderDefine("MONGO_CONFIG_GRPC")
     env.Tool("protobuf_compiler")
-
-if env["MONGO_ALLOCATOR"] == "tcmalloc-google":
-    env.SetConfigHeaderDefine("MONGO_CONFIG_TCMALLOC_GOOGLE")
-elif env["MONGO_ALLOCATOR"] == "tcmalloc-gperf":
-    env.SetConfigHeaderDefine("MONGO_CONFIG_TCMALLOC_GPERF")
 
 if get_option("separate-debug") == "on" or env.TargetOSIs("windows"):
     separate_debug = Tool("separate_debug")
@@ -6439,9 +6013,6 @@ def shouldBuildStreams(thisEnv):
 
 
 env.AddMethod(shouldBuildStreams, "ShouldBuildStreams")
-if env.ShouldBuildStreams():
-    # Set a config indicating this build has the stream processing module enabled (enterprise/src/streams)
-    env.SetConfigHeaderDefine("MONGO_CONFIG_STREAMS")
 
 
 def prefix_libdir_rpath_generator(env, source, target, for_signature):
@@ -6983,6 +6554,142 @@ clang_tidy_config = env.Substfile(
     SUBST_DICT=replacements,
 )
 env.Alias("generated-sources", clang_tidy_config)
+
+if get_option("bazel-includes-info"):
+    target_library = get_option("bazel-includes-info").replace("\\", "/")
+
+    header_map = {}
+    bazel_query = ["aquery"] + env["BAZEL_FLAGS_STR"] + ['mnemonic("CppArchive", //src/...)']
+
+    results = env.RunBazelQuery(bazel_query, "getting all bazel libraries")
+    targets = set()
+    for line in results.stdout.split("\n"):
+        if "  Target: //src" in line:
+            target = line.split("  Target: ")[-1]
+            targets.add(target)
+
+    for target in targets:
+        print(f"getting headers for {target}")
+        bazel_query = (
+            ["cquery"]
+            + env["BAZEL_FLAGS_STR"]
+            + [
+                f'filter("[\\.h,\\.ipp,\\.hpp].*$", labels(hdrs, @{target}))',
+                "--output",
+                "files",
+            ]
+        )
+        results = env.RunBazelQuery(bazel_query, f"getting {target} headers")
+
+        bazel_query = (
+            ["cquery"]
+            + env["BAZEL_FLAGS_STR"]
+            + [
+                f'kind("extract_debuginfo", rdeps(@//src/mongo/..., @{target},  1))',
+            ]
+        )
+        target_results = env.RunBazelQuery(bazel_query, "getting real target")
+        target = target_results.stdout.split(" ")[0]
+        header_map[target] = []
+        for line in results.stdout.split("\n"):
+            header_map[target] += [line]
+
+    bazel_include_info = {
+        "header_map": header_map,
+        "bazel_exec": env["SCONS2BAZEL_TARGETS"].bazel_executable,
+        "config": env["BAZEL_FLAGS_STR"] + ["--config=local"],
+    }
+
+    with open(".bazel_include_info.json", "w") as f:
+        json.dump(bazel_include_info, f)
+
+    def bazel_includes_emitter(target, source, env):
+        rel_target = os.path.relpath(str(target[0].abspath), start=env.Dir("#").abspath).replace(
+            "\\", "/"
+        )
+
+        if rel_target == target_library:
+            objsuffix = (
+                env.subst("$OBJSUFFIX")
+                if not env.TargetOSIs("linux")
+                else env.subst("$SHOBJSUFFIX")
+            )
+            builder_name = (
+                "StaticLibrary" if not env.TargetOSIs("linux") == "nt" else "SharedLibrary"
+            )
+            os.makedirs(os.path.dirname(str(target[0].abspath)), exist_ok=True)
+            with open(str(target[0].abspath) + ".obj_files", "w") as f:
+                for s in source:
+                    if str(s).endswith(objsuffix):
+                        f.write(os.path.relpath(str(s.abspath), start=env.Dir("#").abspath) + "\n")
+            with open(str(target[0].abspath) + ".env_vars", "w") as f:
+                json.dump(env["ENV"], f)
+
+            with (
+                open(str(target[0].abspath) + ".bazel_headers", "w") as fheaders,
+                open(str(target[0].abspath) + ".bazel_deps", "w") as fdeps,
+            ):
+                # note we can't know about LIBDEPS_DEPDENDENTS (reverse deps) in an emitter
+                # however we do co-opt the libdeps linter to check for these at the end of reading
+                # sconscripts
+
+                deps = []
+                for s in (
+                    env.get("LIBDEPS", [])
+                    + env.get("LIBDEPS_PRIVATE", [])
+                    + env.get("LIBDEPS_INTERFACE", [])
+                ):
+                    if not s:
+                        continue
+
+                    libnode = libdeps._get_node_with_ixes(env, s, builder_name)
+
+                    libnode_path = os.path.relpath(
+                        str(libnode.abspath), start=env.Dir("#").abspath
+                    ).replace("\\", "/")
+                    if (
+                        libnode.has_builder()
+                        and libnode.get_builder().get_name(env) != "ThinTarget"
+                    ):
+                        print(
+                            f"ERROR: can generate correct bazel header list because {target[0]} has non-bazel dependency: {libnode}"
+                        )
+                        sys.exit(1)
+                    if str(libnode_path) in env["SCONS2BAZEL_TARGETS"].scons2bazel_targets:
+                        bazel_target = env["SCONS2BAZEL_TARGETS"].bazel_target(str(libnode_path))
+                        # new query to run, run and cache it
+                        deps.append(bazel_target)
+                        bazel_query = (
+                            ["cquery"]
+                            + env["BAZEL_FLAGS_STR"]
+                            + [
+                                f'filter("[\\.h,\\.ipp,\\.hpp].*$", kind("source", deps(@{bazel_target})))',
+                                "--output",
+                                "files",
+                            ]
+                        )
+                        results = env.RunBazelQuery(bazel_query, "getting bazel headers")
+
+                        if results.returncode != 0:
+                            print("ERROR: bazel libdeps query failed:")
+                            print(results)
+                            sys.exit(1)
+                        results = set(
+                            [line for line in results.stdout.split("\n") if line.startswith("src/")]
+                        )
+
+                        for header in results:
+                            fheaders.write(header + "\n")
+                        for dep in deps:
+                            fdeps.write(dep + "\n")
+
+        return target, source
+
+    for builder_name in ["SharedLibrary", "StaticLibrary", "Program"]:
+        builder = env["BUILDERS"][builder_name]
+        base_emitter = builder.emitter
+        new_emitter = SCons.Builder.ListEmitter([base_emitter, bazel_includes_emitter])
+        builder.emitter = new_emitter
 
 env.SConscript(
     dirs=[

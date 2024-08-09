@@ -17,7 +17,7 @@ env.SConscript(
 env.Library(
     target="change_stream_pre_and_post_images_options",
     source=[
-        "change_stream_pre_and_post_images_options.idl",
+        "change_stream_pre_and_post_images_options_gen.cpp",
     ],
     LIBDEPS=[
         "$BUILD_DIR/mongo/base",
@@ -444,7 +444,7 @@ pipelineEnv.Library(
         "$BUILD_DIR/mongo/db/timeseries/catalog_helper",
         "$BUILD_DIR/mongo/db/update/update_document_diff",
         "$BUILD_DIR/mongo/db/views/resolved_view",
-        "$BUILD_DIR/third_party/shim_snappy",
+        "$BUILD_DIR/third_party/snappy/snappy",
         "abt_utils",
         "accumulator",
         "change_stream_error_extra_info",
@@ -566,6 +566,7 @@ env.Library(
         "document_source_current_op.idl",
         "document_source_densify.idl",
         "document_source_fill.idl",
+        "document_source_hybrid_scoring_util.cpp",
         "document_source_internal_all_collection_stats.idl",
         "document_source_internal_apply_oplog_update.idl",
         "document_source_internal_projection.idl",
@@ -579,6 +580,8 @@ env.Library(
         "document_source_query_settings.idl",
         "document_source_query_stats.idl",
         "document_source_query_stats_validators.cpp",
+        "document_source_rank_fusion.idl",
+        "document_source_rank_fusion_inputs.idl",
         "document_source_replace_root.idl",
         "document_source_set_variable_from_subpipeline.idl",
         "document_source_set_window_fields.idl",
@@ -587,7 +590,7 @@ env.Library(
         "resume_token.idl",
         "resume_token.cpp",
         "search/plan_sharded_search.idl",
-        "storage_stats_spec.idl",
+        "storage_stats_spec_gen.cpp",
     ],
     LIBDEPS=[
         "$BUILD_DIR/mongo/base",
@@ -722,6 +725,7 @@ env.CppUnitTest(
         "document_source_queue_test.cpp",
         "document_source_redact_test.cpp",
         "document_source_replace_root_test.cpp",
+        "document_source_rank_fusion_test.cpp",
         "document_source_sample_test.cpp",
         "document_source_sequential_document_cache_test.cpp",
         "document_source_set_variable_from_subpipeline_test.cpp",
@@ -923,7 +927,7 @@ bmEnv.Library(
     LIBDEPS=[
         "$BUILD_DIR/mongo/base",
         "$BUILD_DIR/mongo/db/exec/document_value/document_value",
-        "$BUILD_DIR/third_party/shim_benchmark",
+        "$BUILD_DIR/third_party/benchmark/benchmark",
     ],
 )
 

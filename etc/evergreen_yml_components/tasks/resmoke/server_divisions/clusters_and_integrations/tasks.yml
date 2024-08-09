@@ -2803,9 +2803,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "causal",
         "require_npm",
         "random_name",
@@ -2820,32 +2820,6 @@ tasks:
           suite: jstestfuzz_sharded_causal_consistency
           resmoke_args: --numClientsPerFixture=10
 
-  ## jstestfuzz concurrent sharded cluster continuous stepdown with flow control engaged ##
-  - <<: *jstestfuzz_template
-    name: jstestfuzz_concurrent_sharded_continuous_stepdown_flow_control_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "non_deterministic",
-        "incompatible_debug_mode",
-        "jstestfuzz",
-        "flow_control",
-        "stepdowns",
-        "require_npm",
-        "random_name",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          <<: *jstestfuzz_config_vars
-          num_files: 2
-          num_tasks: 1
-          jstestfuzz_vars: --jsTestsDir ../jstests
-          suite: jstestfuzz_sharded_continuous_stepdown
-          resmoke_args: >-
-            --flowControlTicketOverride=30
-            --numClientsPerFixture=10
-
   ## jstestfuzz concurrent sharded cluster continuous stepdown ##
   - <<: *jstestfuzz_template
     name: jstestfuzz_concurrent_sharded_continuous_stepdown_gen
@@ -2853,9 +2827,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "stepdowns",
         "require_npm",
         "random_name",
@@ -2870,6 +2844,36 @@ tasks:
           suite: jstestfuzz_sharded_continuous_stepdown
           resmoke_args: --numClientsPerFixture=10
 
+  ## config fuzzer jstestfuzz concurrent sharded cluster continuous stepdown ##
+  - <<: *jstestfuzz_template
+    name: config_fuzzer_jstestfuzz_concurrent_sharded_continuous_stepdown_gen
+    # TODO(SERVER-69996) remove "incompatible_debug_mode" tag
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "config_fuzzer",
+        "incompatible_aubsan",
+        "incompatible_debug_mode",
+        "incompatible_tsan",
+        "jstestfuzz",
+        "non_deterministic",
+        "require_npm",
+        "random_name",
+        "stepdowns",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          <<: *jstestfuzz_config_vars
+          num_files: ${jstestfuzz_concurrent_num_files|10}
+          num_tasks: 2
+          jstestfuzz_vars: --jsTestsDir ../jstests
+          suite: jstestfuzz_sharded_continuous_stepdown
+          resmoke_args: >-
+            --numClientsPerFixture=10
+            --fuzzMongodConfigs=normal
+            --excludeWithAnyTags=does_not_support_config_fuzzer
+
   ## jstestfuzz concurrent sharded cluster ##
   - <<: *jstestfuzz_template
     name: jstestfuzz_concurrent_sharded_gen
@@ -2877,10 +2881,10 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "release_critical",
         "incompatible_mac",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "common",
         "sharding",
         "require_npm",
@@ -2903,9 +2907,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "session",
         "require_npm",
         "random_name",
@@ -2927,9 +2931,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "causal",
         "require_npm",
         "random_name",
@@ -2942,32 +2946,6 @@ tasks:
           suite: jstestfuzz_sharded_causal_consistency
           resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
 
-  ## jstestfuzz sharded cluster continuous stepdown with flow control engaged ##
-  - <<: *jstestfuzz_template
-    name: jstestfuzz_sharded_continuous_stepdown_flow_control_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "non_deterministic",
-        "incompatible_debug_mode",
-        "jstestfuzz",
-        "flow_control",
-        "stepdowns",
-        "require_npm",
-        "random_name",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          <<: *jstestfuzz_config_vars
-          num_files: 2
-          num_tasks: 1
-          jstestfuzz_vars: --jsTestsDir ../jstests
-          suite: jstestfuzz_sharded_continuous_stepdown
-          resmoke_args: >-
-            --flowControlTicketOverride=3
-            --mongodSetParameters="{logComponentVerbosity: {command: 2}}"
-
   ## jstestfuzz sharded cluster continuous stepdown ##
   - <<: *jstestfuzz_template
     name: jstestfuzz_sharded_continuous_stepdown_gen
@@ -2975,9 +2953,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "stepdowns",
         "require_npm",
         "random_name",
@@ -2999,10 +2977,10 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "release_critical",
         "incompatible_mac",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "common",
         "sharding",
         "require_npm",
@@ -3048,9 +3026,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "session",
         "require_npm",
         "random_name",
@@ -3088,9 +3066,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
         "incompatible_debug_mode",
         "jstestfuzz",
+        "non_deterministic",
         "sharding",
         "require_npm",
         "random_name",

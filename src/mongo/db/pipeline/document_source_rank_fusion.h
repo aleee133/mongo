@@ -34,7 +34,10 @@
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
 #include "mongo/bson/bsonelement.h"
+#include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/document_source_rank_fusion_gen.h"
+#include "mongo/db/pipeline/document_source_rank_fusion_inputs_gen.h"
 #include "mongo/db/pipeline/expression_context.h"
 
 namespace mongo {
@@ -47,6 +50,8 @@ namespace mongo {
  */
 class DocumentSourceRankFusion final {
 public:
+    static constexpr StringData kStageName = "$rankFusion"_sd;
+
     /**
      * Returns a list of stages to execute hybrid scoring with rank fusion.
      */

@@ -48,10 +48,10 @@
 #include "mongo/db/exec/histogram_server_status_metric.h"
 #include "mongo/db/exec/trial_period_utils.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/query/classic_plan_cache.h"
 #include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
-#include "mongo/db/query/plan_cache_key_factory.h"
+#include "mongo/db/query/plan_cache/classic_plan_cache.h"
+#include "mongo/db/query/plan_cache/plan_cache_key_factory.h"
 #include "mongo/db/query/plan_explainer.h"
 #include "mongo/db/query/plan_explainer_factory.h"
 #include "mongo/db/query/plan_ranker.h"
@@ -266,7 +266,7 @@ Status MultiPlanStage::pickBestPlan(PlanYieldPolicy* yieldPolicy) {
 
     // After picking best plan, ranking will own plan stats from candidate solutions (winner and
     // losers).
-    auto statusWithRanking = plan_ranker::pickBestPlan<PlanStageStats>(_candidates);
+    auto statusWithRanking = plan_ranker::pickBestPlan(_candidates);
     if (!statusWithRanking.isOK()) {
         return statusWithRanking.getStatus();
     }

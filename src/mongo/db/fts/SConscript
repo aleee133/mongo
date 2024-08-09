@@ -68,17 +68,7 @@ baseEnv.Library(
         "$BUILD_DIR/mongo/db/query/bson/dotted_path_support",
         "$BUILD_DIR/mongo/db/query_expressions",
         "$BUILD_DIR/mongo/util/md5",
-        "$BUILD_DIR/third_party/shim_stemmer",
-    ],
-)
-
-env.Library(
-    target="fts_query_noop",
-    source=[
-        "fts_query_noop.cpp",
-    ],
-    LIBDEPS=[
-        "$BUILD_DIR/mongo/base",
+        "$BUILD_DIR/third_party/libstemmer_c/stemmer",
     ],
 )
 

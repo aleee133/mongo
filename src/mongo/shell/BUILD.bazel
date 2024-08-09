@@ -8,3 +8,16 @@ exports_files(
         "*.cpp",
     ]),
 )
+
+mongo_cc_library(
+    name = "linenoise_utf8",
+    srcs = [
+        "linenoise_utf8.cpp",
+    ],
+    hdrs = [
+        "linenoise_utf8.h",
+    ],
+    deps = [
+        "//src/mongo:base",
+    ],
+)

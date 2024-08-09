@@ -175,6 +175,11 @@ if [[ -n "${bazel_scons_diff_targets}" ]]; then
     ${bazel_scons_diff_targets}
 fi
 
+if [[ -n "${convert_bazel_headers_target}" ]]; then
+  eval ${compile_env} $python ./buildscripts/convert_bazel_headers.py --target-library=${convert_bazel_headers_target} --silent > bazel_headers.txt
+  exit 1
+fi
+
 eval ${compile_env} $python ./buildscripts/scons.py \
   ${compile_flags} ${task_compile_flags} ${task_compile_flags_extra} \
   ${scons_cache_args} $extra_args \
@@ -184,14 +189,6 @@ exit_status=$?
 # If compile fails we do not run any tests
 if [[ $exit_status -ne 0 ]]; then
   touch ${skip_tests}
-fi
-
-scons_config_file=$(find build -wholename '*mongo/config.h' -print -quit)
-bazel_config_file=bazel-bin/src/mongo/config.h
-if [ -f "${scons_config_file}" ] && [ -f "${bazel_config_file}" ]; then
-  echo "This should never fail unless you're modifying mongo/config.h generation logic.
-  echo "If this fails, please report it to #ask-devprod-build"
-  diff -u ${scons_config_file} ${bazel_config_file}
 fi
 
 exit $exit_status

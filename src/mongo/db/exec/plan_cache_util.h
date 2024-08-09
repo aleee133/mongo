@@ -44,8 +44,8 @@
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
-#include "mongo/db/query/plan_cache.h"
-#include "mongo/db/query/plan_cache_debug_info.h"
+#include "mongo/db/query/plan_cache/plan_cache.h"
+#include "mongo/db/query/plan_cache/plan_cache_debug_info.h"
 #include "mongo/db/query/plan_ranker.h"
 #include "mongo/db/query/plan_ranking_decision.h"
 #include "mongo/db/query/query_solution.h"
@@ -95,17 +95,6 @@ void updateClassicPlanCacheFromClassicCandidatesForClassicExecution(
     const CanonicalQuery& query,
     std::unique_ptr<plan_ranker::PlanRankingDecision> ranking,
     std::vector<plan_ranker::CandidatePlan>& candidates);
-
-/**
- * Caches the best candidate execution plan for 'query' in SBE plan cache, chosen from the given
- * 'candidates' from SBE based on the 'ranking' decision, if the 'query' is of a type that can be
- * cached. Otherwise, does nothing.
- */
-void updateSbePlanCacheFromSbeCandidates(OperationContext* opCtx,
-                                         const MultipleCollectionAccessor& collections,
-                                         const CanonicalQuery& query,
-                                         std::unique_ptr<plan_ranker::PlanRankingDecision> ranking,
-                                         std::vector<sbe::plan_ranker::CandidatePlan>& candidates);
 
 /**
  * Caches the best candidate execution plan for 'query' in SBE plan cache, chosen from the given

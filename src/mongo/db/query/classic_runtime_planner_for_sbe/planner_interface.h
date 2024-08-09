@@ -34,13 +34,13 @@
 #include "mongo/db/exec/sbe/stages/stages.h"
 #include "mongo/db/exec/subplan.h"
 #include "mongo/db/exec/working_set.h"
+#include "mongo/db/query/plan_cache/sbe_plan_cache.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/query/plan_yield_policy_sbe.h"
 #include "mongo/db/query/planner_interface.h"
 #include "mongo/db/query/query_planner_params.h"
 #include "mongo/db/query/query_solution.h"
-#include "mongo/db/query/sbe_plan_cache.h"
 #include "mongo/db/query/stage_builder/sbe/builder_data.h"
 #include "mongo/db/query/stage_builder/stage_builder_util.h"
 
@@ -180,6 +180,9 @@ public:
         std::unique_ptr<CanonicalQuery> canonicalQuery) override;
 
 private:
+    std::unique_ptr<QuerySolution> extendSolutionWithPipelineIfNeeded(
+        std::unique_ptr<QuerySolution> solution);
+
     std::unique_ptr<QuerySolution> _solution;
     std::pair<std::unique_ptr<sbe::PlanStage>, stage_builder::PlanStageData> _sbePlanAndData;
     bool _isFromPlanCache;

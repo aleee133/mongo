@@ -13,6 +13,10 @@ mongo_cc_library(
     ],
     hdrs = [
         "boost_assert_shim.h",
+        "//src/third_party/boost:headers",
+    ],
+    copts = [
+        "-Isrc/third_party/boost",
     ],
 )
 
@@ -33,20 +37,14 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
-    name = "quick_exit",
+    name = "winutil",
     srcs = [
-        "quick_exit.cpp",
+        "winutil.cpp",
     ],
     hdrs = [
-        "exit_code.h",
-        "quick_exit.h",
-        "//src/mongo/platform:compiler.h",
-        "//src/mongo/stdx:mutex.h",
-        "//src/mongo/util:assert_util.h",
-        "//src/mongo/util:testing_proctor.h",
+        "winutil.h",
     ],
-    local_defines = select({
-        "//bazel/config:gcov_enabled": ["MONGO_GCOV"],
-        "//conditions:default": [],
-    }),
+    deps = [
+        "//src/mongo:base",
+    ],
 )
