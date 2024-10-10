@@ -46,7 +46,6 @@
 #include "mongo/db/repl/replication_consistency_markers_gen.h"
 #include "mongo/db/repl/replication_consistency_markers_impl.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
-#include "mongo/db/repl/shard_merge_recipient_op_observer.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_impl.h"
 #include "mongo/db/repl/storage_interface_mock.h"
@@ -59,7 +58,6 @@
 #include "mongo/db/s/query_analysis_op_observer_shardsvr.h"
 #include "mongo/db/s/resharding/resharding_op_observer.h"
 #include "mongo/db/s/shard_server_op_observer.h"
-#include "mongo/db/serverless/shard_split_donor_op_observer.h"
 #include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/timeseries/timeseries_op_observer.h"
@@ -171,9 +169,6 @@ void setUpObservers(ServiceContext* serviceContext, ClusterRole clusterRole, boo
                 std::make_unique<repl::TenantMigrationDonorOpObserver>());
             opObserverRegistry->addObserver(
                 std::make_unique<repl::TenantMigrationRecipientOpObserver>());
-            opObserverRegistry->addObserver(std::make_unique<ShardSplitDonorOpObserver>());
-            opObserverRegistry->addObserver(
-                std::make_unique<repl::ShardMergeRecipientOpObserver>());
         }
         if (!gMultitenancySupport) {
             opObserverRegistry->addObserver(
@@ -201,9 +196,6 @@ void setUpObservers(ServiceContext* serviceContext, ClusterRole clusterRole, boo
                 std::make_unique<repl::TenantMigrationDonorOpObserver>());
             opObserverRegistry->addObserver(
                 std::make_unique<repl::TenantMigrationRecipientOpObserver>());
-            opObserverRegistry->addObserver(std::make_unique<ShardSplitDonorOpObserver>());
-            opObserverRegistry->addObserver(
-                std::make_unique<repl::ShardMergeRecipientOpObserver>());
         }
         if (!gMultitenancySupport) {
             opObserverRegistry->addObserver(

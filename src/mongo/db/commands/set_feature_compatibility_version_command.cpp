@@ -96,7 +96,6 @@
 #include "mongo/db/repl/repl_set_config.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_coordinator.h"
-#include "mongo/db/repl/shard_merge_recipient_service.h"
 #include "mongo/db/repl/tenant_migration_donor_service.h"
 #include "mongo/db/repl/tenant_migration_recipient_service.h"
 #include "mongo/db/s/config/configsvr_coordinator_service.h"
@@ -112,7 +111,6 @@
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
-#include "mongo/db/serverless/shard_split_donor_service.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_id.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
@@ -1642,17 +1640,6 @@ private:
                 ->lookupServiceByName(
                     repl::TenantMigrationRecipientService::kTenantMigrationRecipientServiceName));
         recipientService->abortAllMigrations(opCtx);
-
-        auto splitDonorService = checked_cast<ShardSplitDonorService*>(
-            repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext())
-                ->lookupServiceByName(ShardSplitDonorService::kServiceName));
-        splitDonorService->abortAllSplits(opCtx);
-
-        auto mergeRecipientService = checked_cast<repl::ShardMergeRecipientService*>(
-            repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext())
-                ->lookupServiceByName(
-                    repl::ShardMergeRecipientService::kShardMergeRecipientServiceName));
-        mergeRecipientService->abortAllMigrations(opCtx);
     }
 
     /**

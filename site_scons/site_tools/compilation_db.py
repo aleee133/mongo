@@ -20,13 +20,14 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import json
-import SCons
 import itertools
-import shlex
-import sys
+import json
 import os
+import shlex
 import subprocess
+import sys
+
+import SCons
 
 # Implements the ability for SCons to emit a compilation database for the MongoDB project. See
 # http://clang.llvm.org/docs/JSONCompilationDatabase.html for details on what a compilation
@@ -160,7 +161,10 @@ def CompilationDbEntryAction(target, source, env, **kw):
 
     tool_abspaths = []
     for tool in tool_list:
-        tool_abspaths.append('"' + env.WhereIs(tool) + '"')
+        tool_abspath = env.WhereIs(tool)
+        if tool_abspath is None:
+            tool_abspath = os.path.abspath(str(tool))
+        tool_abspaths.append('"' + tool_abspath + '"')
     cmd_list = tool_abspaths + cmd_list
 
     entry = {
@@ -197,10 +201,8 @@ def WriteCompilationDb(target, source, env):
         env.RunBazelCommand(
             [env["SCONS2BAZEL_TARGETS"].bazel_executable, "run"]
             + env["BAZEL_FLAGS_STR"]
-            + ["--features=-thin_archive"]
             + ["//:compiledb", "--"]
             + env["BAZEL_FLAGS_STR"]
-            + ["--features=-thin_archive"]
         )
 
     subprocess.run(

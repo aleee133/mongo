@@ -6,9 +6,9 @@ import errno
 import functools
 import json
 import os
-import re
 import pathlib
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -18,11 +18,11 @@ import uuid
 from datetime import datetime
 from glob import glob
 
-from pkg_resources import parse_version
-
 import SCons
 import SCons.Script
 from mongo_tooling_metrics.lib.top_level_metrics import SConsToolingMetrics
+from pkg_resources import parse_version
+
 from site_scons.mongo import build_profiles
 
 # This must be first, even before EnsureSConsVersion, if
@@ -32,10 +32,10 @@ DefaultEnvironment(tools=[])
 # These come from site_scons/mongo. Import these things
 # after calling DefaultEnvironment, for the sake of paranoia.
 import mongo
-import mongo.platform as mongo_platform
-import mongo.toolchain as mongo_toolchain
 import mongo.generators as mongo_generators
 import mongo.install_actions as install_actions
+import mongo.platform as mongo_platform
+import mongo.toolchain as mongo_toolchain
 
 EnsurePythonVersion(3, 10)
 EnsureSConsVersion(3, 1, 1)
@@ -51,9 +51,9 @@ def release_target_info_noop(self):
 
 SCons.Node.FS.File.release_target_info = release_target_info_noop
 
-from buildscripts import utils
-from buildscripts import moduleconfig
 import psutil
+
+from buildscripts import moduleconfig, utils
 
 scons_invocation = "{} {}".format(sys.executable, " ".join(sys.argv))
 print("scons: running with args {}".format(scons_invocation))
@@ -1669,6 +1669,7 @@ SConsignFile(str(sconsDataDir.File("sconsign.py3")))
 
 def printLocalInfo():
     import sys
+
     import SCons
 
     print(("scons version: " + SCons.__version__))
@@ -1740,9 +1741,9 @@ env.AddMethod(lambda env, name, **kwargs: add_option(name, **kwargs), "AddOption
 env.Prepend(CCFLAGS="$TOOLCHAIN_CCFLAGS")
 env.Prepend(LINKFLAGS="$TOOLCHAIN_LINKFLAGS")
 
-if not mongo_toolchain_execroot:
-    os.environ["CC"] = env.get("CC", os.environ.get("CC"))
-    os.environ["CXX"] = env.get("CXX", os.environ.get("CXX"))
+if ARGUMENTS.get("CC") and ARGUMENTS.get("CXX"):
+    os.environ["CC"] = env.get("CC")
+    os.environ["CXX"] = env.get("CXX")
     os.environ["USE_NATIVE_TOOLCHAIN"] = "1"
 
 # Early load to setup env functions
@@ -6640,6 +6641,18 @@ if get_option("bazel-includes-info"):
     env.Tool("bazel_includes_info")
 
 env.WaitForBazel()
+
+if str(env["LIBDEPS_GRAPH_ALIAS"]) in COMMAND_LINE_TARGETS:
+    # The find_symbols binary is a small fast C binary which will extract the missing
+    # symbols from the target library, and discover what linked libraries supply it. This
+    # setups the binary to be built.
+    find_symbols_env = env.Clone()
+    find_symbols_env.VariantDir("${BUILD_DIR}/libdeps", "buildscripts/libdeps", duplicate=0)
+    find_symbols_env.Program(
+        target="${BUILD_DIR}/libdeps/find_symbols",
+        source=["${BUILD_DIR}/libdeps/find_symbols.c"],
+        CFLAGS=["-O3"],
+    )
 
 env.SConscript(
     must_exist=1,

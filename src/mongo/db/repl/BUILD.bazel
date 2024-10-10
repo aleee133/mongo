@@ -732,6 +732,7 @@ mongo_cc_library(
         "//src/mongo/db:write_concern_gen",
         "//src/mongo/db:yieldable.h",
         "//src/mongo/db/auth:authorization_manager.h",
+        "//src/mongo/db/auth:authorization_router.h",
         "//src/mongo/db/auth:builtin_roles.h",
         "//src/mongo/db/auth:ldap_cumulative_operation_stats.h",
         "//src/mongo/db/auth:ldap_operation_stats.h",
@@ -1472,7 +1473,6 @@ mongo_cc_library(
     name = "tenant_migration_utils",
     srcs = [
         "tenant_migration_recipient_entry_helpers.cpp",
-        "tenant_migration_shard_merge_util.cpp",
         "tenant_migration_util.cpp",
     ],
     hdrs = [
@@ -1531,7 +1531,6 @@ mongo_cc_library(
         "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db/commands:tenant_migration_cmds_request",
         "//src/mongo/db/concurrency:exception_util",
-        "//src/mongo/db/serverless:shard_split_state_machine",
         "//src/mongo/executor:network_interface_factory",
         "//src/mongo/executor:thread_pool_task_executor",
         "//src/mongo/util:future_util",

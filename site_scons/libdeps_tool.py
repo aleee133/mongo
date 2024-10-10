@@ -51,32 +51,32 @@ automatically added when missing.
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-from collections import defaultdict
-from functools import partial
-import enum
 import copy
-import json
-import os
-import sys
+import enum
+import fileinput
 import glob
-import textwrap
 import hashlib
 import json
-import fileinput
+import os
 import subprocess
+import sys
+import textwrap
 import time
 import traceback
+from collections import defaultdict
+from functools import partial
 
 try:
     import networkx
-    from buildscripts.libdeps.libdeps.graph import EdgeProps, NodeProps, LibdepsGraph
+
+    from buildscripts.libdeps.libdeps.graph import EdgeProps, LibdepsGraph, NodeProps
 except ImportError:
     pass
 
+import SCons
 import SCons.Errors
 import SCons.Scanner
 import SCons.Util
-import SCons
 from SCons.Script import COMMAND_LINE_TARGETS
 
 
@@ -1605,17 +1605,6 @@ def setup_environment(env, emitting_shared=False, debug="off", linting="on"):
         for bin in required_bins:
             if not env.WhereIs(bin):
                 env.FatalError(f"'{bin}' not found, Libdeps graph generation requires {bin}.")
-
-        # The find_symbols binary is a small fast C binary which will extract the missing
-        # symbols from the target library, and discover what linked libraries supply it. This
-        # setups the binary to be built.
-        find_symbols_env = env.Clone()
-        find_symbols_env.VariantDir("${BUILD_DIR}/libdeps", "buildscripts/libdeps", duplicate=0)
-        find_symbols_env.Program(
-            target="${BUILD_DIR}/libdeps/find_symbols",
-            source=["${BUILD_DIR}/libdeps/find_symbols.c"],
-            CFLAGS=["-O3"],
-        )
 
         # Here we are setting up some functions which will return single instance of the
         # network graph and symbol deps list. We also setup some environment variables
