@@ -42,10 +42,10 @@
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_options.h"
-#include "mongo/db/catalog/collection_validation.h"
 #include "mongo/db/catalog/database.h"
 #include "mongo/db/catalog/index_catalog_entry.h"
 #include "mongo/db/catalog/throttle_cursor.h"
+#include "mongo/db/catalog/validate/collection_validation.h"
 #include "mongo/db/catalog_raii.h"
 #include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/namespace_string.h"
@@ -89,38 +89,6 @@ public:
     BSONValidateModeEnum getBSONValidateMode() const {
         return isBSONConformanceValidation() ? BSONValidateModeEnum::kFull
                                              : BSONValidateModeEnum::kExtended;
-    }
-
-    bool isCollectionSchemaViolated() const {
-        return _collectionSchemaViolated;
-    }
-
-    void setCollectionSchemaViolated() {
-        _collectionSchemaViolated = true;
-    }
-
-    bool isTimeseriesDataInconsistent() const {
-        return _timeseriesDataInconsistency;
-    }
-
-    void setTimeseriesDataInconsistent() {
-        _timeseriesDataInconsistency = true;
-    }
-
-    bool isTimeseriesBucketingParametersChangedInconsistent() const {
-        return _timeseriesBucketingParametersChangedInconsistent;
-    }
-
-    void setTimeseriesBucketingParametersChangedInconsistent() {
-        _timeseriesBucketingParametersChangedInconsistent = true;
-    }
-
-    bool isBSONDataNonConformant() const {
-        return _BSONDataNonConformant;
-    }
-
-    void setBSONDataNonConformant() {
-        _BSONDataNonConformant = true;
     }
 
     UUID uuid() const {
@@ -183,10 +151,6 @@ private:
     ValidateState() = delete;
 
     NamespaceString _nss;
-    bool _collectionSchemaViolated = false;
-    bool _timeseriesDataInconsistency = false;
-    bool _timeseriesBucketingParametersChangedInconsistent = false;
-    bool _BSONDataNonConformant = false;
     // To avoid racing with shutdown.
     boost::optional<Lock::GlobalLock> _globalLock;
 

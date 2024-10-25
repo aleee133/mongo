@@ -1004,6 +1004,8 @@ def generate(env: SCons.Environment.Environment) -> None:
         f'--use_sasl_client={env.GetOption("use-sasl-client") is not None}',
         "--define",
         f"MONGO_VERSION={env['MONGO_VERSION']}",
+        "--define",
+        f"MONGO_DISTMOD={env['MONGO_DISTMOD']}",
         "--compilation_mode=dbg",  # always build this compilation mode as we always build with -g
     ]
 
@@ -1060,9 +1062,13 @@ def generate(env: SCons.Environment.Environment) -> None:
 
     public_release = False
     # Disable remote execution for public release builds.
-    if env.GetOption("release") == "on" and (
-        env.GetOption("cache-dir") is None
-        or env.GetOption("cache-dir") == "$BUILD_ROOT/scons/cache"
+    if (
+        env.GetOption("release") == "on"
+        and env.GetOption("remote-exec-release") == "off"
+        and (
+            env.GetOption("cache-dir") is None
+            or env.GetOption("cache-dir") == "$BUILD_ROOT/scons/cache"
+        )
     ):
         bazel_internal_flags.append("--config=public-release")
         public_release = True

@@ -27,7 +27,7 @@
  *    it in the license file.
  */
 
-#include "mongo/db/catalog/validate_results.h"
+#include "mongo/db/catalog/validate/validate_results.h"
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -105,5 +105,18 @@ TEST(ValidateResultsTest, IndexIssuesGenerateSyntheticCollectionIssue) {
     ASSERT_FALSE(contains(warns, "foo warning"));
 }
 
+TEST(ValidateResultsTest, ErrorsAndWarningsAutomaticallyDeduplicated) {
+    ValidateResults vr;
+
+    ASSERT_TRUE(vr.addError("e1"));
+    ASSERT_TRUE(vr.addError("e2"));
+    ASSERT_FALSE(vr.addError("e1"));
+    ASSERT_EQ(vr.getErrors().size(), 2);
+
+    ASSERT_TRUE(vr.addWarning("w1"));
+    ASSERT_TRUE(vr.addWarning("w2"));
+    ASSERT_FALSE(vr.addWarning("w2"));
+    ASSERT_EQ(vr.getWarnings().size(), 2);
+}
 
 }  // namespace mongo

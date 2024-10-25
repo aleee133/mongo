@@ -27,7 +27,7 @@
  *    it in the license file.
  */
 
-#include "mongo/db/catalog/validate_results.h"
+#include "mongo/db/catalog/validate/validate_results.h"
 
 #include <cstddef>
 
@@ -112,11 +112,11 @@ void ValidateResults::appendToResultObj(BSONObjBuilder* resultObj,
         bob.appendBool("valid", ivr.isValid());
 
         if (!ivr.getWarnings().empty()) {
-            bob.append("warnings", ivr.getWarnings());
+            bob.append("warnings", ivr.getWarnings().begin(), ivr.getWarnings().end());
         }
 
         if (!ivr.getErrors().empty()) {
-            bob.append("errors", ivr.getErrors());
+            bob.append("errors", ivr.getErrors().begin(), ivr.getErrors().end());
         }
 
         keysPerIndex.appendNumber(indexName, static_cast<long long>(ivr.getKeysTraversed()));
